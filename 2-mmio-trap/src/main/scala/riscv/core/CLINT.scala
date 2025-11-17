@@ -66,9 +66,9 @@ class CLINT extends Module {
 
     val csr_bundle = new CSRDirectAccessBundle
   })
-  val interrupt_enable_global = io.csr_bundle.mstatus(3) // MIE bit (global enable)
-  val interrupt_enable_timer = io.csr_bundle.mie(7)      // MTIE bit (timer enable)
-  val interrupt_enable_external = io.csr_bundle.mie(11)  // MEIE bit (external enable)
+  val interrupt_enable_global   = io.csr_bundle.mstatus(3) // MIE bit (global enable)
+  val interrupt_enable_timer    = io.csr_bundle.mie(7)     // MTIE bit (timer enable)
+  val interrupt_enable_external = io.csr_bundle.mie(11)    // MEIE bit (external enable)
 
   val instruction_address = Mux(
     io.jump_flag,
@@ -111,16 +111,19 @@ class CLINT extends Module {
     io.interrupt_handler_address := io.csr_bundle.mtvec
     // TODO: Complete mstatus update logic for interrupt entry
     // Hint: mstatus bit layout (showing only relevant bits):
-    //   [31:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]
+    //   [31:13] | [12:11:MPP] | [10:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]
     // Need to:
-    // 1. Save current MIE to MPIE (bit 7)
-    // 2. Clear MIE (bit 3) to disable interrupts
+    // 1. Set MPP to 0b11 (Machine mode)
+    // 2. Save current MIE to MPIE (bit 7)
+    // 3. Clear MIE (bit 3) to disable interrupts
     io.csr_bundle.mstatus_write_data :=
       Cat(
-        io.csr_bundle.mstatus(31, 8),
-        ?, // mpie ← mie (save current interrupt enable)
+        io.csr_bundle.mstatus(31, 13),
+        3.U(2.W), // mpp ← 0b11 (Machine mode)
+        io.csr_bundle.mstatus(10, 8),
+        mie, // mpie ← mie (save current interrupt enable)
         io.csr_bundle.mstatus(6, 4),
-        ?, // mie ← 0 (disable interrupts)
+        0.U(1.W), // mie ← 0 (disable interrupts)
         io.csr_bundle.mstatus(2, 0)
       )
     io.csr_bundle.mepc_write_data := instruction_address
@@ -142,7 +145,9 @@ class CLINT extends Module {
     io.interrupt_handler_address := io.csr_bundle.mtvec
     io.csr_bundle.mstatus_write_data :=
       Cat(
-        io.csr_bundle.mstatus(31, 8),
+        io.csr_bundle.mstatus(31, 13),
+        3.U(2.W), // mpp ← 0b11 (Machine mode)
+        io.csr_bundle.mstatus(10, 8),
         mie, // mpie
         io.csr_bundle.mstatus(6, 4),
         0.U(1.W), // mie
@@ -159,38 +164,41 @@ class CLINT extends Module {
       )
     )
     io.csr_bundle.direct_write_enable := true.B
-  // ============================================================
-  // [CA25: Exercise 14] Trap Return (MRET) - mstatus State Restoration
-  // ============================================================
-  // Hint: Implement mstatus register update during trap return (MRET instruction)
-  //
-  // MRET (Machine Return) state transition:
-  // 1. Restore interrupt enable: MIE ← MPIE (restore saved state)
-  // 2. Set MPIE to 1: MPIE ← 1 (spec requires MPIE=1 after MRET)
-  // 3. Return to saved PC: PC ← mepc
-  //
-  // This is the inverse of trap entry:
-  // - Trap entry: MPIE←MIE, MIE←0 (save and disable)
-  // - MRET: MIE←MPIE, MPIE←1 (restore and reset)
-  //
-  // Example:
-  // - Before MRET: mstatus.MIE=0, mstatus.MPIE=1 (in trap handler)
-  // - After MRET:  mstatus.MIE=1, mstatus.MPIE=1 (interrupts re-enabled)
+    // ============================================================
+    // [CA25: Exercise 14] Trap Return (MRET) - mstatus State Restoration
+    // ============================================================
+    // Hint: Implement mstatus register update during trap return (MRET instruction)
+    //
+    // MRET (Machine Return) state transition:
+    // 1. Restore interrupt enable: MIE ← MPIE (restore saved state)
+    // 2. Set MPIE to 1: MPIE ← 1 (spec requires MPIE=1 after MRET)
+    // 3. Return to saved PC: PC ← mepc
+    //
+    // This is the inverse of trap entry:
+    // - Trap entry: MPIE←MIE, MIE←0 (save and disable)
+    // - MRET: MIE←MPIE, MPIE←1 (restore and reset)
+    //
+    // Example:
+    // - Before MRET: mstatus.MIE=0, mstatus.MPIE=1 (in trap handler)
+    // - After MRET:  mstatus.MIE=1, mstatus.MPIE=1 (interrupts re-enabled)
   }.elsewhen(io.instruction === InstructionsRet.mret) { // ret
     io.interrupt_assert          := true.B
     io.interrupt_handler_address := io.csr_bundle.mepc
     // TODO: Complete mstatus update logic for MRET
     // Hint: mstatus bit layout (showing only relevant bits):
-    //   [31:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]
+    //   [31:13] | [12:11:MPP] | [10:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]
     // Need to:
-    // 1. Set MPIE to 1 (bit 7)
-    // 2. Restore MIE from MPIE (bit 3 ← bit 7)
+    // 1. Set MPP to 0b11 (Machine mode, for M-mode only systems)
+    // 2. Set MPIE to 1 (bit 7)
+    // 3. Restore MIE from MPIE (bit 3 ← bit 7)
     io.csr_bundle.mstatus_write_data :=
       Cat(
-        io.csr_bundle.mstatus(31, 8),
-        ?, // mpie ← 1 (reset MPIE)
+        io.csr_bundle.mstatus(31, 13),
+        3.U(2.W), // mpp ← 0b11 (Machine mode)
+        io.csr_bundle.mstatus(10, 8),
+        1.U(1.W), // mpie ← 1 (reset MPIE)
         io.csr_bundle.mstatus(6, 4),
-        ?, // mie ← mpie (restore interrupt enable)
+        mpie, // mie ← mpie (restore interrupt enable)
         io.csr_bundle.mstatus(2, 0)
       )
     io.csr_bundle.mepc_write_data     := io.csr_bundle.mepc

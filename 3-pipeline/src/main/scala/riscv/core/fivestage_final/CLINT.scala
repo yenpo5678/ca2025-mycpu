@@ -44,18 +44,24 @@ class CLINT extends Module {
 
     val csr_bundle = new CSRDirectAccessBundle
   })
-  val interrupt_enable_global = io.csr_bundle.mstatus(3) // MIE bit (global enable)
-  val interrupt_enable_timer = io.csr_bundle.mie(7)      // MTIE bit (timer enable)
-  val interrupt_enable_external = io.csr_bundle.mie(11)  // MEIE bit (external enable)
+  val interrupt_enable_global   = io.csr_bundle.mstatus(3) // MIE bit (global enable)
+  val interrupt_enable_timer    = io.csr_bundle.mie(7)     // MTIE bit (timer enable)
+  val interrupt_enable_external = io.csr_bundle.mie(11)    // MEIE bit (external enable)
 
   val instruction_address = Mux(
     io.jump_flag,
     io.jump_address,
     io.instruction_address_if,
   )
-  val mstatus_disable_interrupt = io.csr_bundle.mstatus(31, 4) ## 0.U(1.W) ## io.csr_bundle.mstatus(2, 0)
+  // Trap entry: Set MPP=0b11 (Machine mode), MPIE=MIE (save), MIE=0 (disable)
+  val mstatus_disable_interrupt =
+    io.csr_bundle.mstatus(31, 13) ## 3.U(2.W) ## io.csr_bundle.mstatus(10, 8) ## io.csr_bundle.mstatus(
+      3
+    ) ## io.csr_bundle.mstatus(6, 4) ## 0.U(1.W) ## io.csr_bundle.mstatus(2, 0)
+  // Trap return: Set MPP=0b11 (Machine mode), MPIE=1, MIE=MPIE (restore)
   val mstatus_recover_interrupt =
-    io.csr_bundle.mstatus(31, 4) ## io.csr_bundle.mstatus(7) ## io.csr_bundle.mstatus(2, 0)
+    io.csr_bundle.mstatus(31, 13) ## 3.U(2.W) ## io.csr_bundle.mstatus(10, 8) ## 1
+      .U(1.W) ## io.csr_bundle.mstatus(6, 4) ## io.csr_bundle.mstatus(7) ## io.csr_bundle.mstatus(2, 0)
 
   // Check individual interrupt source enable based on interrupt type
   val interrupt_source_enabled = Mux(
