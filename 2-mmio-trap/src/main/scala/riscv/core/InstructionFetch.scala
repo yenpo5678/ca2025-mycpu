@@ -66,7 +66,15 @@ class InstructionFetch extends Module {
     // - Inner multiplexer: Check jump flag
     //   - True: Use jump target address
     //   - False: Sequential execution
-    pc := ?
+    pc := Mux(
+      io.interrupt_assert, // Outermost: Check Interrupt/Trap
+      io.interrupt_handler_address, 
+      Mux(
+        io.jump_flag_id, // Inner: Check Jump/Branch
+        io.jump_address_id, 
+        pc + 4.U // Lowest: Sequential
+      )
+    )
 
   }.otherwise {
     // When instruction is invalid, hold PC and insert NOP (ADDI x0, x0, 0)
