@@ -76,6 +76,25 @@ class PipelineProgramTest extends AnyFlatSpec with ChiselScalatestTester {
         c.io.mem_debug_read_data.expect(3.U)
       }
     }
+    
+    // ============================================================
+    // [Homework 2 Integration] New Test Case
+    // ============================================================
+    it should "execute homework2 hanoi" in {
+      runProgram("homework2.asmbin", cfg) { c =>
+        // Increase timeout for recursive execution
+        c.clock.setTimeout(10000)
+        
+        // Step enough cycles for Hanoi(3) to complete
+        // The program solves Hanoi(3) which takes 7 moves + setup overhead.
+        // 5000 cycles should be sufficient for the optimized pipeline.
+        c.clock.step(5000)
+        
+        // Optional: Check if execution finished by inspecting registers
+        // For example, checking if the stack pointer or saved registers are restored
+        // or if a specific register holds the result.
+      }
+    }
 
     it should "handle all hazard types comprehensively" in {
       runProgram("hazard_extended.asmbin", cfg) { c =>
