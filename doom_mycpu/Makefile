@@ -9,6 +9,11 @@ SIM_TIME ?= 1000000
 SIM_VCD ?= trace.vcd
 WRITE_VCD ?= 1
 
+# Doom Paths
+DOOM_SRC_DIR := doom_riscv/src/riscv
+DOOM_BIN_SRC := $(DOOM_SRC_DIR)/doom-riscv.bin
+DOOM_BIN_DST := doom.bin
+
 test:
 	cd .. && sbt "project mmioTrap" test
 
@@ -44,6 +49,27 @@ demo: verilator
 	cd verilog/verilator/obj_dir && ./VTop -vga -instruction ../../../csrc/nyancat.asmbin -time 500000000
 	@echo "Demo complete!"
 
+# ==========================================
+#  Doom Automation Section
+# ==========================================
+
+# 1. 編譯 Doom 軟體 (.c -> .elf -> .bin)
+#    這會進入 doom_riscv 目錄呼叫那邊的 Makefile
+build-doom:
+	@echo ">>> [Software] Compiling Doom..."
+	$(MAKE) -C $(DOOM_SRC_DIR) doom-riscv.bin CROSS=riscv64-unknown-elf-
+
+# 2. 執行 Doom (整合硬體編譯 + 軟體編譯 + 執行)
+#    相依性：verilator (硬體), build-doom (軟體)
+run-doom: verilator build-doom
+	@echo ">>> [System] Copying binary to root..."
+	cp $(DOOM_BIN_SRC) $(DOOM_BIN_DST)
+	@echo ">>> [Simulation] Starting Doom..."
+	# 注意：我們 cd 進 obj_dir 執行，所以讀檔路徑要用 ../../../doom.bin
+	cd verilog/verilator/obj_dir && ./VTop -instruction ../../../$(DOOM_BIN_DST) -vga -time $(SIM_TIME)
+
+# ==========================================
+
 indent:
 	find . -name '*.scala' | xargs scalafmt
 	clang-format -i verilog/verilator/*.cpp
@@ -60,10 +86,11 @@ clean:
 	cd .. && sbt "project mmioTrap" clean
 	rm -rf test_run_dir
 	$(MAKE) -C verilog/verilator clean
+	$(MAKE) -C $(DOOM_SRC_DIR) clean
 	rm -f verilog/verilator/*.v verilog/verilator/*.fir verilog/verilator/*.anno.json
-	rm -f $(SIM_VCD)
+	rm -f $(SIM_VCD) $(DOOM_BIN_DST)
 
 distclean: clean
 	rm -rf results
 
-.PHONY: verilator verilator-sdl2 test indent sim demo compliance clean distclean
+.PHONY: verilator verilator-sdl2 test indent sim demo compliance clean distclean build-doom run-doom

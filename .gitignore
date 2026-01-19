@@ -14,6 +14,8 @@ project/plugins/project/
 *.out
 *.elf
 *.hex
+*.bin  # [新增] Doom 編譯出的最終格式通常是 binary
+*.map  # [新增] GCC 編譯產生的記憶體映射檔
 
 ### Logs and crash dumps
 *.log
@@ -36,6 +38,7 @@ hs_err_pid*
 test_run_dir/
 */test_run_dir/
 *.vcd
+trace.vcd  # [新增] Makefile 指定的預設波形檔名
 *.fst
 
 # Verilator generated files and build directories
@@ -60,3 +63,20 @@ test_run_dir/
 **/src/test/scala/riscv/compliance/ComplianceTest.scala
 **/src/main/resources/test.asmbin
 **/src/main/resources/test_*.asmbin
+
+# ==========================================
+# Doom Project Artifacts (新增區塊)
+# ==========================================
+# 最終複製到根目錄的執行檔
+doom.bin
+
+# Doom 原始碼目錄下的編譯產物
+doom_riscv/src/riscv/doom-riscv.bin
+
+# WAD 檔轉換成的 Object file (很大，不要傳)
+doom_wad.o
+
+# 如果你不想上傳原始 WAD 檔 (版權考量)，請取消下面這行的註解
+*.wad
+
+doom_mycpu/doom_riscv_new/
